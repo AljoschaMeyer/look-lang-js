@@ -1,0 +1,14 @@
+{
+  "name": "look-lang",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/parser.js"
+  },
+  "author": "Aljoscha Meyer",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "parsimmon": "^1.12.0"
+  }
+}

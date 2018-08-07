@@ -1,0 +1,479 @@
+// # The Look Programming Language
+//
+// Look is a simple, imperative, statically typed, high-level programming language with pointers,
+// manual memory management, algebraic data types and parametric polymorphism and ad-hoc polymorphism.
+// You can think of it as a slightly cleaner user interface to the C abstract machine.
+//
+// You might disagree with some design choices, and that is fine.
+// You might disagree with the need for this language, and that is fine too.
+//
+// ## Basic Types and Expressions
+//
+// `//` starts a line comment.
+//
+// These are the primitive types in look:
+type Primitives = (
+  U8, U16, U32, U64, U128, // Unsigned integers of a certain size in bits
+  Usize, // Unsigned integer of machine word length (corresponds to `size_t` in C)
+  I8, I16, I32, I64, I128, // Signed integers (two's complement) of a certain size in bit
+  Isize, // Signed integer of the same size as Usize
+  F32, F64, // The usual [IEEE 754](https://ieeexplore.ieee.org/document/4610935/) floats
+  Bool, // Boolean value, either true or false
+  Void // The [empty type](https://en.wikipedia.org/wiki/Bottom_type) which has no values.
+       // Not to be confused with C's [`void`](https://en.wikipedia.org/wiki/Void_type)
+       // return type or with C's void pointers.
+)
+
+// Primitive literals
+val a: U32 = 1234
+val b: F32 = -1.0
+val c: F32 = 1.2E-3
+val d: Bool = true
+val e: Bool = false
+// There is no literal expression of type `Void`.
+
+// Product types (aka tuples) combine multiple types into a new one.
+type TupleExample = (U8, Bool, U8)
+val my_tuple: TupleExample = (17, false, 42)
+val tuple_access: Bool = my_tuple.1
+
+// Types can be nested arbitrarily
+type NestedTuple = (U8, (I16, U32))
+val nested_tuple: NestedTuple = (42, (42, 42))
+val tuple_access_nested: I16 = nested_tuple.1.0
+
+// The empty product is a unit type, it has exactly one value. A function returning
+// the empty product corresponds to a void function in C.
+// Values of a unit type don't take up any space at runtime.
+type Unit = ()
+
+// A tuple of only one element has the same type as that element
+val one_elem_tuple: I8 = (((42)))
+val one_elem_tuple2: ((I8)) = (42)
+
+// Look has function types, the values of these are pointers to executable code.
+type MyFunctionType = (U8, I16) -> ()
+
+val increment = (int: U32) -> U32 {
+  u32::add(int, 1)
+}
+
+// A function returning `Void` is a function that never returns.
+val diverge = () -> Void {
+  halt // The `halt` statement ends execution of the current thread.
+}
+
+// Here a bunch of things you can do in function bodies. A function body consist of a
+// list of statements, separated by semicolons. In order to typecheck, each statement
+// but the last must have the `()` type. The type of the last statement must
+// match the return type.
+val demo_fn0 = (foo: U32, mut bar: I16) -> U32 {
+  // Bind a value to a name, shadowing outer occurences of the same name.
+  // Identifiers must begin with `[_a-zA-Z]` and can continue with `[_a-zA-Z0-9]`.
+  // Identifiers may not be longer than 127 characters.
+  // `_` by itself is not a normal identifier (see below).
+  val x: U32 = 39;
+
+  // The `val` keyword inside function bodies allows some limited type inference.
+  // The inference does not take into account any information from statements
+  // below the declaration.
+  val some_bool = false;
+  // `val some_int = 1` would not typecheck, since the exact type of the integer
+  // literal can not be inferred without looking ahead how the variable is used.
+
+  // A val can be declared as a mutable binding. By default, bindings are immutable.
+  val mut mut_bool = false;
+
+  // Mutable bindings can be assigned a new value.
+  mut_bool = true;
+
+  // You can also declare a mutable binding without initializing it.
+  // Reading from an uninitialized binding is undefined behavior.
+  val mut xyz: F64;
+  xyz = 5.2;
+
+  // Val bindings can use an underscore `_` instead of an identifier to explicitly
+  // ignore the result of a computation.
+  val _ = increment(x);
+  // Just `increment(x );` would not typecheck since its type is not `()`.
+
+  // Functions can recursively call themselves.
+  val no_type_annotation_needed = demo_fn0(foo, -3);
+
+  // There can be no whitespace, newline or comment before the opening parentheses of a
+  // function application, the following is syntactically invalid: `foo (bar)`.
+
+  // The `sizeof` operator takes a type and returns the size of the type in
+  // bytes as a `Usize` (at compile time).
+  val this_is_4 = sizeof(U32);
+
+  // Just like function bodies, blocks allow chaining statements.
+  val blocks_evaluate_to_their_last_statement = {
+    val _ = 42;
+    val foo: F32 = 3.14; // shadows the outer variable called `foo`
+    true
+  };
+
+  // There's an `if` statement.
+  if some_bool {
+    ()
+  };
+
+  val if_evaluates_to_last_statement = if some_bool {
+    true
+  };
+
+  // There's an `else` statement.
+  if some_bool {
+    ()
+  } else {
+    ()
+  };
+
+  // `else if` gets to omit some curly braces
+  if some_bool {
+    ()
+  } else if mut_bool {
+    ()
+  } else {
+    ()
+  };
+
+  // There are short-circuiting operators for logical and (`&&`) and logival or (`||`)
+  let uiuiui = true && (false || true);
+
+  // There's a `while` loop.
+  a = 0;
+  while a < 10 {
+    a += 1
+  };
+
+  val while_evaluates_to_last_statement = while mut_bool {
+    mut_bool = false;
+    true
+  };
+
+  // `break` exits from a loop
+  while true {
+    break
+  };
+
+  // `break` can take an expression to evaluate to
+  a = while true {
+    break 17
+  };
+
+  // There's also `return` to exit a functon early: `return 42`.
+  // In functions returning `()`, a simple `return` is enough.
+
+  // There are `label`s and `goto` statements
+  if false {
+    goto my_label
+  };
+
+  label my_label;
+
+  // The `unreachable` statement has type `Void` and evaluating it is undefined behavior.
+  if false {
+    unreachable
+  };
+
+  42 // The last statement of the function is returned and is not terminated by a semicolon.
+}
+
+// ## Modules
+//
+// Each file has its own, separate namespace. New names for types are added via `type` items:
+type MyType = Bool
+
+// This does not introduce separate types (see the section on algebraic data types for how
+// to do that), only aliases.
+val a_bool: Bool = true
+val a_my_type: MyType = a_bool
+
+// The `val` keyword introduces a statically known value. Unlike in functions, there must be
+// a type annotation, unless the value is a function.
+val xxx: I64 = 423
+val yyy = () -> () {
+  return
+}
+
+// Top-level values can be mutable.
+// Unlike in functions, `val mut foo;` is not ok, an initial value must be specified.
+val mut zzz: Usize = sizeof(U64)
+// `val`s of a function type can not be mutable.
+
+// By default, `val`s and `type`s defined in a file are not visible to other files.
+// To make an item public, use the `pub` keyword:
+pub val pub_val: Bool = true
+pub type PubType = Bool
+
+// Public items from other files can be imported via the `use` keyword.
+// Each directory of files introduces a namespace. When compiling, the compiler is given
+// the paths of two special directories: One to resolve dependencies, and one as the
+// base directory of the current project. The `dep` keyword at the beginning of a `use`
+// refers to the dependency directory, the `mod` keyword to the current project's base.
+// In the following examples, suppose the path of the dependency directory was `DEPS`, and
+// the path of the project's base was `MOD`.
+use dep::x::y::z // Inside `DEPS`, look for a directory `x`, which contains `lib.oo`
+                 // and exports a public item under the name of `y`, which is itself a
+                 // namespace containing an item named `z`.
+
+use mod::foo::blub // Look for `MOD/foo.oo`. If it exists, import a public item named `blub`.
+                   // Else, look for `MOD/foo/blub.oo`. If it exists, `blub` becomes a
+                   // namespace containing all its public items.
+                   // Else, look for a directory `MOD/foo/blub`. If it exists, `blub` becomes
+                   // a namespace, containing the namespaces for all files and directories inside
+                   // `MOD/foo/blub`. Else, error.
+
+// The items in a namespace can be accessed via qualified identifiers:
+val qual_assign: I32 = blub::a
+
+// Imported items can be renamed
+use mod::foo::blub as blab
+
+// A `use` can be public to reexport items.
+pub use mod::foo::blub as blib
+
+// A `use` can start with a namespace rather than `mod` or `dep`:
+use bleb::a as bleb_a
+
+// Qualified identifiers can also begin with `mod` or `dep`:
+val aeiou: I32 = mod::foo::blub::a
+
+// There are built-in namespaces for the primimitive types: `u8`, `i8`, ..., `void`, `bool`.
+// A full list of their items is given at the end of this document.
+
+// Aside from ordinary items, there can be a special entry point in a file:
+// If a file contains a function called `main` of type `() -> ()`, the file can be
+// compiled into an executable with this function as the entry point.
+val main = () -> () {
+  return
+}
+
+// ## Pointers, Arrays, Repeated Tuples and Type Conversions
+val demo_fn1 = () -> () {
+  // Look has pointers, represented by the `@` character.
+  val a: @U16 = @0;
+
+  // Dereferencing is done by appending the `@`:
+  val b = a@;
+
+  // `@T` is an immutable pointer to exactly one `T`. It is guaranteed to be non-null.
+  // You can not mutate the pointed-to location, `a@ = 1` does not typecheck.
+  // Mutable pointers are written `~`.
+  val mut c: U8 = 0;
+  (~c)~ = 1;
+  // Taking a mutable pointer to an immutable binding is not allowed, e.g. `~a` is rejected.
+
+  // A pointer to zero or more elements of the same type `T` is written `@[T]` or `~[T]`.
+  // It can be dereferenced via brackets:
+  val d = @[a];
+  val e = d[2 + 3]; // undefined behavior, since `a` consists of less than six `U16`s
+
+  // These array pointers are prone to undefined behavior, since the type system can not
+  // track whether the access is within the bounds.
+
+  // At runtime, `@T`, `~T`, `@[T]` and `~[T]` all have the same representation.
+
+  // How do you get array pointers where accesses for values other than `0` are fine?
+  // One way are tuples:
+  c = @[(0, 3, 6, 9)][2]; // sets `c` to 6
+
+  // Another (new) way are repeated tuples.
+  val mut f: (F64; 4);
+  f = (123.456; 4);
+  f.2 = 1.5;
+  f = (1.0, 2.0, 3.0, 4.0); // `(F64; 4)` and `(F64, F64, F64, F64)` are interchangable
+
+  // Valid access via an array pointer:
+  ~[f][1] = 9.9;
+
+  // The number of repetitions can be any expression that can be computed at compile time.
+  val g = (true; sizeof(F64));
+  // But once `sizeof` is involved, tuple access e.g. `g.3` is not allowed anymore.
+  // (this rule may become less strict at a later point in time)
+
+  // The `as` keyword performs conversions between types.
+  // It can be used to convert between numbers.
+  c = 2.0 as U8;
+  val h: I32 = - 16;
+  c = h as U8;
+
+  // For any type `T`, `as` can convert into a repeated product of bytes of its size:
+  val j: (U8; sizeof(F32)) = 2.3 as (U8; sizeof(F32));
+
+  // Any pointer can be treated as a pointer to an array of bytes.
+  val k = ~c as ~[U8];
+
+  // `@T` is a supertype of `~T`:
+  mut l: @Bool = ~true;
+
+  // `@[T]` is a supertype of `~[T]`:
+  val m: @[Bool] = ~[true];
+
+  return
+}
+
+// ## Algebraic Data Types and Patterns
+//
+// The `type` keyword can be used to define algebraic data types, whose constructors
+// are delimited by a pipe `|`:
+type ListOfU8 =
+  | nil
+  | cons(U8, @ListOfU8)
+
+val my_list_of_u8: ListOfU8 = ListOfU8::cons(42, @ListOfU8::nil)
+
+// ADTs are namespaces and their constructors can be imported into scope.
+use ListOfU8::nil
+use ListOfU8::cons
+use ListOfU8::cons as append
+val another_list_of_u8: ListOfU8 = cons(1, @append(2, @nil))
+
+// The arguments to a constructor can be named.
+type Color = | color(r: U8, g: U8, b: U8)
+val yellow: Color = Color::color(r = 255, b = 0, g = 255)
+
+// If an ADT has only one constructor, you can access fields directly.
+val the_red_of_yellow: U8 = yellow.r
+
+// Otherwise, you need to break it up with patterns:
+val demo_fn_patterns = () -> () {
+  let a = case my_list_of_u8 {
+    | nil { unreachable }
+    | cons(head, tail) {
+      head
+    }
+  };
+  // The case statement can be thought of as a generalization of the `if`/`else` statement.
+
+  // Patterns can be used whereever value bindings are declared: With the `val` keyword,
+  // for function arguments, with `case` statements (shown above) and with the `loop`
+  // statement, which generalizes the `while` statement:
+
+  let mut countdown = cons(3, @cons(2, @cons(1, @cons(0, @nil))));
+
+  loop countdown {
+    cons(_, tail) {
+      countdown = tail@
+    }
+    nil {
+      ()
+    }
+  };
+
+  // A list of all irrefutable patterns:
+
+  // The `_` pattern ignores its value.
+  let _ = 42;
+
+  // A pattern can bind a value to a name, and it can be mutable and type annotated.
+  let name_pattern = false;
+  let mut name_pattern_2: U8 = 42;
+
+  // Anonymous tuple patterns:
+  let (_, _) = (42, 42);
+
+  // Pointer patterns:
+  let @_ = @42;
+
+  // Assigning names to parts of a pattern:
+  let a := (_, mut b: (U8, U8) := (_, _)) = (42, (42, 17));
+
+  // Ignoring parts of a tuple.
+  let (..) = (42, 42);
+  let (c, ..) = (1, 2, 3);
+  let (.., d) = (1, 2, 3);
+  let (e, f, .., g, _) = (1, 2, 3, 4, 5, 6);
+
+  // Refutable patterns can only be used for `case` and `loop`.
+  case f {
+    // Literals can be used as (refutable) patterns
+    2 { () }
+    _ { unreachable }
+  }
+
+  // Matching named fields.
+  case yellow {
+    | Color::color(r = red: U8, g = 42, ..) { unreachable }
+    _ { () }
+  };
+}
+
+// TODO
+//
+// TODO ffi data layout annotation
+//
+// ## Parametric Polymorphism (Generics)
+// TODO
+//
+// ## Meta
+//
+// Items of a file and statements of a block can be attributed. An attribute is of
+// the form `#[attribute]`. One such attribute is `cc` (conditional compilation),
+// which serves to exclude code if a given feature is not enabled. Features are
+// arbitrary strings passed as arguments to the compiler.
+
+#[cc(debug)]
+val debug_only: Usize = 0
+// The `debug` feature is for code that helps verifying behavior of implementation
+// details. It should only be enabled for the project that is currently worked on,
+// but not e.g. for its dependencies.
+
+#[cc(dev)]
+val dev_only: Isize = -3
+// The `dev` feature is for code that helps verifying behavior that is visible to
+// the outside. Examples for this are checking that a function's caller upholds an
+// invariant, or explicitly halting on undefined behavior.
+
+// Other useful features could be instruction sets, operating systems, etc.
+
+// Items and statements can have any number of attributes:
+#[cc(foo)]
+#[cc(bar)]
+val needs_both_features: Bool = false
+
+// Another set of useful attributes are `test` and `test_pure`, which indicate unit
+// tests.
+#[test_pure]
+val test_empty = () -> () {}
+
+// Annotated functions should be run by a test runner. A test counts as failed, if
+// the function halts (a test runner might also enfore timeouts).
+// `test_pure` is for pure functions without side-effects. These can be tested more
+// efficiently than `test` functions. For these, it is necessary to spawn a process
+// per test.
+//
+// `test` and `test_pure` code behaves as if it was attributed with `#[cc(dev)]`.
+//
+// The `test` and `test_pure` annotations have built-in support for property testing.
+// They can take arguments, and the test runner will automatically supply them.
+#[test_pure]
+val test_associativity = (x: U32, y: U32, z: U32) -> () {
+  if bool::neq(u32::add_wrap(u32::add_wrap(x, y), z), u32::add_wrap(x, u32::add_wrap(y, z))) {
+    halt
+  }
+}
+
+// The initial implementation of look uses [afl](http://lcamtuf.coredump.cx/afl/) to
+// generate the arguments.
+// Currently, arguments of a function type become either a constant function, or an
+// identity function on one of the arguments.
+
+// TODO: `test` and (array) pointers
+
+// Look has a C ffi. To use some C code you must first include it, and then provide
+// look types for it.
+ffi include <foo.h>
+ffi include "bar.h" // resolved relative to the `mod` directory
+
+pub ffi val my_c_fun: (U32) -> () // A C `void` function taking an `int32_t`
+ffi val mut mutable_c_var: U8 // A non-static global C variable of type `char` or `uint8_t`
+
+// TODO Appendix: Built-in modules
+
+// TODO update this to functions in a ptr module?
+// Pointers can be compared via `==`, `!=`, `>`, `>=`, `<=`, `<=`. The ordering is not
+// specified, except that it is consistent with arrays:
+// If `e1 > e2`, then `@(foo[e1]) > @(foo[e2])`, and so on.
