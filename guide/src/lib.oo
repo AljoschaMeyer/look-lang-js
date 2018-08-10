@@ -63,7 +63,7 @@ val diverge = () -> Void {
   halt // The `halt` statement ends execution of the current thread.
 }
 
-// Here a bunch of things you can do in function bodies. A function body consist of a
+// Here are a bunch of things you can do in function bodies. A function body consist of a
 // list of statements, separated by semicolons. In order to typecheck, each statement
 // but the last must have the `()` type. The type of the last statement must
 // match the return type.
@@ -95,13 +95,10 @@ val demo_fn0 = (foo: U32, mut bar: I16) -> U32 {
   // Val bindings can use an underscore `_` instead of an identifier to explicitly
   // ignore the result of a computation.
   val _ = increment(x);
-  // Just `increment(x );` would not typecheck since its type is not `()`.
+  // Just `increment(x);` would not typecheck since its type is not `()`.
 
   // Functions can recursively call themselves.
   val no_type_annotation_needed = demo_fn0(foo, -3);
-
-  // There can be no whitespace, newline or comment before the opening parentheses of a
-  // function application, the following is syntactically invalid: `foo (bar)`.
 
   // The `sizeof` operator takes a type and returns the size of the type in
   // bytes as a `Usize` (at compile time).
@@ -114,7 +111,7 @@ val demo_fn0 = (foo: U32, mut bar: I16) -> U32 {
     true
   };
 
-  // There's an `if` statement.
+  // There's an `if` statement (actually, it's an expression).
   if some_bool {
     ()
   };
@@ -140,12 +137,12 @@ val demo_fn0 = (foo: U32, mut bar: I16) -> U32 {
   };
 
   // There are short-circuiting operators for logical and (`&&`) and logival or (`||`)
-  let uiuiui = true && (false || true);
+  val uiuiui = true && (false || true);
 
   // There's a `while` loop.
   a = 0;
-  while a < 10 {
-    a += 1
+  while usize::less_than(a, 10) {
+    a = usize::add(a, 1)
   };
 
   val while_evaluates_to_last_statement = while mut_bool {
@@ -263,13 +260,14 @@ val demo_fn1 = () -> () {
   // You can not mutate the pointed-to location, `a@ = 1` does not typecheck.
   // Mutable pointers are written `~`.
   val mut c: U8 = 0;
-  (~c)~ = 1;
+  val ptr_to_c: ~U8 = ~c;
+  ptr_to_c~ = 1;
   // Taking a mutable pointer to an immutable binding is not allowed, e.g. `~a` is rejected.
 
   // A pointer to zero or more elements of the same type `T` is written `@[T]` or `~[T]`.
   // It can be dereferenced via brackets:
   val d = @[a];
-  val e = d[2 + 3]; // undefined behavior, since `a` consists of less than six `U16`s
+  val e = d[5]; // undefined behavior, since `a` consists of less than six `U16`s
 
   // These array pointers are prone to undefined behavior, since the type system can not
   // track whether the access is within the bounds.
@@ -286,8 +284,9 @@ val demo_fn1 = () -> () {
   f.2 = 1.5;
   f = (1.0, 2.0, 3.0, 4.0); // `(F64; 4)` and `(F64, F64, F64, F64)` are interchangable
 
-  // Valid access via an array pointer:
-  ~[f][1] = 9.9;
+  // // Valid access via an array pointer:
+  val many_ptr_to_f: ~[F64] = ~[f];
+  many_ptr_to_f[1] = 9.9;
 
   // The number of repetitions can be any expression that can be computed at compile time.
   val g = (true; sizeof(F64));
@@ -297,7 +296,7 @@ val demo_fn1 = () -> () {
   // The `as` keyword performs conversions between types.
   // It can be used to convert between numbers.
   c = 2.0 as U8;
-  val h: I32 = - 16;
+  val h: I32 = -16;
   c = h as U8;
 
   // For any type `T`, `as` can convert into a repeated product of bytes of its size:
@@ -307,7 +306,7 @@ val demo_fn1 = () -> () {
   val k = ~c as ~[U8];
 
   // `@T` is a supertype of `~T`:
-  mut l: @Bool = ~true;
+  val mut l: @Bool = ~true;
 
   // `@[T]` is a supertype of `~[T]`:
   val m: @[Bool] = ~[true];
@@ -315,98 +314,113 @@ val demo_fn1 = () -> () {
   return
 }
 
-// ## Algebraic Data Types and Patterns
+// // ## Algebraic Data Types and Patterns
+// TODO rework this, use struct and enum keywords. use `# unit_enum_variant` as pattern for enum variants without fields. Also add union keyword?
+// //
+// // The `type` keyword can be used to define algebraic data types, whose constructors
+// // are delimited by a pipe `|`:
+// type ListOfU8 =
+//   | nil
+//   | cons(U8, @ListOfU8)
 //
-// The `type` keyword can be used to define algebraic data types, whose constructors
-// are delimited by a pipe `|`:
-type ListOfU8 =
-  | nil
-  | cons(U8, @ListOfU8)
-
-val my_list_of_u8: ListOfU8 = ListOfU8::cons(42, @ListOfU8::nil)
-
-// ADTs are namespaces and their constructors can be imported into scope.
-use ListOfU8::nil
-use ListOfU8::cons
-use ListOfU8::cons as append
-val another_list_of_u8: ListOfU8 = cons(1, @append(2, @nil))
-
-// The arguments to a constructor can be named.
-type Color = | color(r: U8, g: U8, b: U8)
-val yellow: Color = Color::color(r = 255, b = 0, g = 255)
-
-// If an ADT has only one constructor, you can access fields directly.
-val the_red_of_yellow: U8 = yellow.r
-
-// Otherwise, you need to break it up with patterns:
-val demo_fn_patterns = () -> () {
-  let a = case my_list_of_u8 {
-    | nil { unreachable }
-    | cons(head, tail) {
-      head
-    }
-  };
-  // The case statement can be thought of as a generalization of the `if`/`else` statement.
-
-  // Patterns can be used whereever value bindings are declared: With the `val` keyword,
-  // for function arguments, with `case` statements (shown above) and with the `loop`
-  // statement, which generalizes the `while` statement:
-
-  let mut countdown = cons(3, @cons(2, @cons(1, @cons(0, @nil))));
-
-  loop countdown {
-    cons(_, tail) {
-      countdown = tail@
-    }
-    nil {
-      ()
-    }
-  };
-
-  // A list of all irrefutable patterns:
-
-  // The `_` pattern ignores its value.
-  let _ = 42;
-
-  // A pattern can bind a value to a name, and it can be mutable and type annotated.
-  let name_pattern = false;
-  let mut name_pattern_2: U8 = 42;
-
-  // Anonymous tuple patterns:
-  let (_, _) = (42, 42);
-
-  // Pointer patterns:
-  let @_ = @42;
-
-  // Assigning names to parts of a pattern:
-  let a := (_, mut b: (U8, U8) := (_, _)) = (42, (42, 17));
-
-  // Ignoring parts of a tuple.
-  let (..) = (42, 42);
-  let (c, ..) = (1, 2, 3);
-  let (.., d) = (1, 2, 3);
-  let (e, f, .., g, _) = (1, 2, 3, 4, 5, 6);
-
-  // Refutable patterns can only be used for `case` and `loop`.
-  case f {
-    // Literals can be used as (refutable) patterns
-    2 { () }
-    _ { unreachable }
-  }
-
-  // Matching named fields.
-  case yellow {
-    | Color::color(r = red: U8, g = 42, ..) { unreachable }
-    _ { () }
-  };
-}
-
-// TODO
+// val my_list_of_u8: ListOfU8 = ListOfU8::cons(42, @ListOfU8::nil)
 //
-// TODO ffi data layout annotation
+// // ADTs are namespaces and their constructors can be imported into scope.
+// use ListOfU8::nil
+// use ListOfU8::cons
+// use ListOfU8::cons as append
+// val another_list_of_u8: ListOfU8 = cons(1, @append(2, @nil))
 //
-// ## Parametric Polymorphism (Generics)
-// TODO
+// // The arguments to a constructor can be named.
+// type Color = | color(r: U8, g: U8, b: U8)
+// val yellow: Color = Color::color(r = 255, b = 0, g = 255)
+//
+// // If an ADT has only one constructor, you can access fields directly.
+// val the_red_of_yellow: U8 = yellow.r
+//
+// // Otherwise, you need to break it up with patterns:
+// val demo_fn_patterns = () -> () {
+//   let a = case my_list_of_u8 {
+//     | nil { unreachable }
+//     | cons(head, tail) {
+//       head
+//     }
+//   };
+//   // The case statement can be thought of as a generalization of the `if`/`else` statement.
+//
+//   // Patterns can be used whereever value bindings are declared: With the `val` keyword,
+//   // for function arguments, with `case` statements (shown above) and with the `loop`
+//   // statement, which generalizes the `while` statement:
+//
+//   let mut countdown = cons(3, @cons(2, @cons(1, @cons(0, @nil))));
+//
+//   loop countdown {
+//     cons(_, tail) {
+//       countdown = tail@
+//     }
+//     nil {
+//       ()
+//     }
+//   };
+//
+//   // A list of all irrefutable patterns:
+//
+//   // The `_` pattern ignores its value.
+//   let _ = 42;
+//
+//   // A pattern can bind a value to a name, and it can be mutable and type annotated.
+//   let name_pattern = false;
+//   let mut name_pattern_2: U8 = 42;
+//
+//   // Anonymous tuple patterns:
+//   let (_, _) = (42, 42);
+//
+//   // Pointer patterns:
+//   let @_ = @42;
+//
+//   // Assigning names to parts of a pattern:
+//   let a := (_, mut b: (U8, U8) := (_, _)) = (42, (42, 17));
+//
+//   // Ignoring parts of a tuple.
+//   let (..) = (42, 42);
+//   let (c, ..) = (1, 2, 3);
+//   let (.., d) = (1, 2, 3);
+//   let (e, f, .., g, _) = (1, 2, 3, 4, 5, 6);
+//
+//   // Refutable patterns can only be used for `case` and `loop`.
+//   case f {
+//     // Literals can be used as (refutable) patterns
+//     2 { () }
+//     _ { unreachable }
+//   }
+//
+//   // Matching named fields.
+//   case yellow {
+//     | Color::color(r = red: U8, g = 42, ..) { unreachable }
+//     _ { () }
+//   };
+// }
+//
+// // TODO ffi data layout annotation
+//
+// // ## Parametric Polymorphism (Generics)
+// // Types can be generic:
+// type List = <T> => | nil | cons(T, ~List<T>)
+// type ListOfLists = <T> => List<List<T>>
+// type ListOfI8 = List<I8>
+// // Type arguments can not be higher-kinded, you can't do `List<List>` and you can't
+// // define any types where this would make sense.
+//
+// // Functions can be generic as well:
+// val identity = <T> => (arg: T) -> T { arg }
+//
+// val demo_fn3 = () -> () {
+//   val a = identity<Bool>(true);
+//
+//   // Type arguments for functions are inferred where possible.
+//   val b = identity(false);
+//   val c: I16 = identity(42)
+// }
 //
 // ## Meta
 //
@@ -463,13 +477,13 @@ val test_associativity = (x: U32, y: U32, z: U32) -> () {
 
 // TODO: `test` and (array) pointers
 
-// Look has a C ffi. To use some C code you must first include it, and then provide
-// look types for it.
-ffi include <foo.h>
-ffi include "bar.h" // resolved relative to the `mod` directory
-
-pub ffi val my_c_fun: (U32) -> () // A C `void` function taking an `int32_t`
-ffi val mut mutable_c_var: U8 // A non-static global C variable of type `char` or `uint8_t`
+// // Look has a C ffi. To use some C code you must first include it, and then provide
+// // look types for it.
+// ffi include <foo.h>
+// ffi include "bar.h" // resolved relative to the `mod` directory
+//
+// pub ffi val my_c_fun: (U32) -> () // A C `void` function taking an `int32_t`
+// ffi val mut mutable_c_var: U8 // A non-static global C variable of type `char` or `uint8_t`
 
 // TODO Appendix: Built-in modules
 
