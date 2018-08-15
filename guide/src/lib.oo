@@ -314,114 +314,118 @@ val demo_fn1 = () -> () {
   return
 }
 
-// // ## Algebraic Data Types and Patterns
-// TODO rework this, use struct and enum keywords. use `# unit_enum_variant` as pattern for enum variants without fields. Also add union keyword?
-// //
-// // The `type` keyword can be used to define algebraic data types, whose constructors
-// // are delimited by a pipe `|`:
-// type ListOfU8 =
-//   | nil
-//   | cons(U8, @ListOfU8)
+// ## Algebraic Data Types and Patterns
 //
-// val my_list_of_u8: ListOfU8 = ListOfU8::cons(42, @ListOfU8::nil)
+// The `type` keyword can be used to define algebraic data types, whose constructors
+// are delimited by a pipe `|`:
+type ListOfU8 =
+  | nil
+  | cons(U8, @ListOfU8)
+
+val my_list_of_u8: ListOfU8 = ListOfU8::cons(42, @ListOfU8::nil)
+
+// ADTs are namespaces and their constructors can be imported into scope.
+use ListOfU8::nil
+use ListOfU8::cons
+use ListOfU8::cons as append
+val another_list_of_u8: ListOfU8 = cons(1, @append(2, @nil))
+
+// The arguments to a constructor can be named.
+type Color = | color(r: U8, g: U8, b: U8)
+val yellow: Color = Color::color(r = 255, b = 0, g = 255)
+
+// If an ADT has only one constructor, you can access fields directly.
+val the_red_of_yellow: U8 = yellow.r
+
+// Otherwise, you need to break it up with patterns:
+val demo_fn_patterns = () -> () {
+  val a = case my_list_of_u8 {
+    | nil { unreachable }
+    | cons(head, tail) {
+      head
+    }
+  };
+  // The case statement can be thought of as a generalization of the `if`/`else` statement.
+
+  // Patterns can be used whereever value bindings are declared: With the `val` keyword,
+  // for function arguments, with `case` statements (shown above) and with the `loop`
+  // statement, which generalizes the `while` statement:
+
+  val mut countdown = cons(3, @cons(2, @cons(1, @cons(0, @nil))));
+
+  loop countdown {
+    | cons(_, tail) {
+      countdown = tail@
+    }
+    | nil {
+      ()
+    }
+  };
+
+  // A list of all irrefutable patterns:
+
+  // The `_` pattern ignores its value.
+  val _ = 42;
+
+  // A pattern can bind a value to a name, and it can be mutable and/or type annotated.
+  val name_pattern = false;
+  val mut name_pattern_2: U8 = 42;
+
+  // Anonymous tuple patterns:
+  val (_, _) = (42, 42);
+
+  // Pointer patterns:
+  val @_ = @42;
+
+  // Assigning names to parts of a pattern:
+  val a := (_, mut b: (U8, U8) := (_, _)) = (42, (42, 17));
+
+  // Ignoring parts of a tuple.
+  val (..) = (42, 42);
+  val (c, ..) = (1, 2, 3);
+  val (.., d) = (1, 2, 3);
+  val (e, f, .., g, _) = (1, 2, 3, 4, 5, 6);
+
+  // Refutable patterns can only be used for `case` and `loop`.
+  case f {
+    // Literals can be used as (refutable) patterns
+    2 { () }
+    _ { unreachable }
+  };
+
+  // Matching named fields.
+  case yellow {
+    | Color::color(r = red: U8, g = 42, ..) { unreachable }
+    _ { () }
+  };
+
+  // Multiple different patterns joined by `+` can use the same code block in `case`
+  // and `loop` statements.
+  case my_list_of_u8 {
+    | nil(..) + | cons(..) { () }
+  }
+}
+
+// ## Parametric Polymorphism (Generics)
 //
-// // ADTs are namespaces and their constructors can be imported into scope.
-// use ListOfU8::nil
-// use ListOfU8::cons
-// use ListOfU8::cons as append
-// val another_list_of_u8: ListOfU8 = cons(1, @append(2, @nil))
-//
-// // The arguments to a constructor can be named.
-// type Color = | color(r: U8, g: U8, b: U8)
-// val yellow: Color = Color::color(r = 255, b = 0, g = 255)
-//
-// // If an ADT has only one constructor, you can access fields directly.
-// val the_red_of_yellow: U8 = yellow.r
-//
-// // Otherwise, you need to break it up with patterns:
-// val demo_fn_patterns = () -> () {
-//   let a = case my_list_of_u8 {
-//     | nil { unreachable }
-//     | cons(head, tail) {
-//       head
-//     }
-//   };
-//   // The case statement can be thought of as a generalization of the `if`/`else` statement.
-//
-//   // Patterns can be used whereever value bindings are declared: With the `val` keyword,
-//   // for function arguments, with `case` statements (shown above) and with the `loop`
-//   // statement, which generalizes the `while` statement:
-//
-//   let mut countdown = cons(3, @cons(2, @cons(1, @cons(0, @nil))));
-//
-//   loop countdown {
-//     cons(_, tail) {
-//       countdown = tail@
-//     }
-//     nil {
-//       ()
-//     }
-//   };
-//
-//   // A list of all irrefutable patterns:
-//
-//   // The `_` pattern ignores its value.
-//   let _ = 42;
-//
-//   // A pattern can bind a value to a name, and it can be mutable and type annotated.
-//   let name_pattern = false;
-//   let mut name_pattern_2: U8 = 42;
-//
-//   // Anonymous tuple patterns:
-//   let (_, _) = (42, 42);
-//
-//   // Pointer patterns:
-//   let @_ = @42;
-//
-//   // Assigning names to parts of a pattern:
-//   let a := (_, mut b: (U8, U8) := (_, _)) = (42, (42, 17));
-//
-//   // Ignoring parts of a tuple.
-//   let (..) = (42, 42);
-//   let (c, ..) = (1, 2, 3);
-//   let (.., d) = (1, 2, 3);
-//   let (e, f, .., g, _) = (1, 2, 3, 4, 5, 6);
-//
-//   // Refutable patterns can only be used for `case` and `loop`.
-//   case f {
-//     // Literals can be used as (refutable) patterns
-//     2 { () }
-//     _ { unreachable }
-//   }
-//
-//   // Matching named fields.
-//   case yellow {
-//     | Color::color(r = red: U8, g = 42, ..) { unreachable }
-//     _ { () }
-//   };
-// }
-//
-// // TODO ffi data layout annotation
-//
-// // ## Parametric Polymorphism (Generics)
-// // Types can be generic:
-// type List = <T> => | nil | cons(T, ~List<T>)
-// type ListOfLists = <T> => List<List<T>>
-// type ListOfI8 = List<I8>
-// // Type arguments can not be higher-kinded, you can't do `List<List>` and you can't
-// // define any types where this would make sense.
-//
-// // Functions can be generic as well:
-// val identity = <T> => (arg: T) -> T { arg }
-//
-// val demo_fn3 = () -> () {
-//   val a = identity<Bool>(true);
-//
-//   // Type arguments for functions are inferred where possible.
-//   val b = identity(false);
-//   val c: I16 = identity(42)
-// }
-//
+// Types can be generic:
+type List = <T> => | nil | cons(T, ~List<T>)
+type ListOfLists = <T> => List<List<T>>
+type ListOfI8 = List<I8>
+// Type arguments can not be higher-kinded, you can't do `List<List>` and you can't
+// even define any types where this would make sense.
+
+// Functions can be generic as well:
+val identity = <T> => (arg: T) -> T { arg }
+
+val demo_fn3 = () -> () {
+  val a = identity<Bool>(true);
+
+  // Type arguments for functions are inferred where possible.
+  val b = identity(false);
+  val c: I16 = identity(42)
+}
+
 // ## Meta
 //
 // Items of a file and statements of a block can be attributed. An attribute is of
@@ -470,12 +474,14 @@ val test_associativity = (x: U32, y: U32, z: U32) -> () {
   }
 }
 
+// The only way to get array types `@[t]` and `~[T]` as test data is to use
+// tuples `(@[T], Usize)` or `(~[T], Usize)` as arguments to a test function.
+// The second part of the tuple then holds the number of elements in the array.
+
 // The initial implementation of look uses [afl](http://lcamtuf.coredump.cx/afl/) to
 // generate the arguments.
 // Currently, arguments of a function type become either a constant function, or an
 // identity function on one of the arguments.
-
-// TODO: `test` and (array) pointers
 
 // // Look has a C ffi. To use some C code you must first include it, and then provide
 // // look types for it.
@@ -484,6 +490,8 @@ val test_associativity = (x: U32, y: U32, z: U32) -> () {
 //
 // pub ffi val my_c_fun: (U32) -> () // A C `void` function taking an `int32_t`
 // ffi val mut mutable_c_var: U8 // A non-static global C variable of type `char` or `uint8_t`
+//
+// TODO ffi data layout attribute
 
 // TODO Appendix: Built-in modules
 
