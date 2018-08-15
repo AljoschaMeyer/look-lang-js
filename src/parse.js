@@ -18,7 +18,7 @@ module.exports = P.createLanguage({
   id: r => r.sid.sepBy1(P.string("::").skip(r.skip))
     .node("Id"),
 
-  attr: r => P.alt(r.attr_cc, r.attr_test)
+  attr: r => P.alt(r.attr_cc, r.attr_test, r.attr_repr)
     .wrap(P.string("#["), P.string("]"))
     .node("Attr")
     .skip(r.skip),
@@ -35,6 +35,10 @@ module.exports = P.createLanguage({
     .node("AttrTest")
     .skip(r.skip),
 
+  attr_repr: r => P.string("repr(C)")
+    .node("AttrCc")
+    .skip(r.skip),
+
   pub: r => P.string("pub").result(true).mark().fallback(null)
     .skip(r.skip),
 
@@ -46,13 +50,30 @@ module.exports = P.createLanguage({
       P.alt(
          r.item_type,
          r.item_val,
-         r.item_use // TODO other items: useffi
+         r.item_use,
+         r.item_ffi_include,
+         r.item_ffi_val
        ),
-       (attrs, stmt) => {
-         stmt.value.attrs = attrs;
-         return stmt;
+       (attrs, item) => {
+         item.value.attrs = attrs;
+         return item;
        }
     ),
+
+  item_ffi_include: r => P.seqMap(
+      P.string("ffi").mark().skip(r.skip),
+      P.string("include").mark().skip(r.skip),
+      P.alt(
+        P.regex(/[a-zA-Z0-9_\.]+/)
+          .wrap(P.string("<").skip(r.skip), P.string(">").skip(r.skip))
+          .map(include => ({include, relative: false})),
+        P.regex(/[a-zA-Z0-9_\.]+/)
+          .wrap(P.string("\"").skip(r.skip), P.string("\"").skip(r.skip))
+          .map(include => ({include, relative: true})),
+      ),
+      (ffi_kw, include_kw, inc) => ({ffi_kw, include_kw, include: inc.include, relative: inc.relative})
+    )
+    .node("ItemFfiInclude"),
 
   item_use: r => P.seqMap(
     r.pub,
@@ -216,6 +237,18 @@ module.exports = P.createLanguage({
       node.value.generic_type = left;
       return node;
     }),
+
+  item_ffi_val: r => P.seqMap(
+      r.pub,
+      P.string("ffi").mark().skip(r.skip),
+      P.string("val").mark().skip(r.skip),
+      P.string("mut").skip(r.skip).result(true).fallback(false),
+      r.sid
+        .skip(P.string(":")).skip(r.skip),
+      r.type_def,
+      (pub, ffi_kw, val_kw, mutable, sid, type) => ({pub, ffi_kw, val_kw, mutable, sid, type})
+    )
+    .node("ItemVal"),
 
   item_val: r => P.seqMap(
       r.pub,

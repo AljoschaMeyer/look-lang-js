@@ -483,19 +483,21 @@ val test_associativity = (x: U32, y: U32, z: U32) -> () {
 // Currently, arguments of a function type become either a constant function, or an
 // identity function on one of the arguments.
 
-// // Look has a C ffi. To use some C code you must first include it, and then provide
-// // look types for it.
-// ffi include <foo.h>
-// ffi include "bar.h" // resolved relative to the `mod` directory
-//
-// pub ffi val my_c_fun: (U32) -> () // A C `void` function taking an `int32_t`
-// ffi val mut mutable_c_var: U8 // A non-static global C variable of type `char` or `uint8_t`
-//
-// TODO ffi data layout attribute
+// Look has a C ffi. To use some C code you must first include it, and then provide
+// look types for it.
+ffi include <foo.h>
+ffi include "bar.h" // resolved relative to the `mod` directory
+
+pub ffi val my_c_fun: (U32) -> () // A C `void` function taking an `int32_t`
+ffi val mut mutable_c_var: U8 // A non-static global C variable of type `char` or `uint8_t`
+
+// To make the memory layout of algebraic data types ffi-compatible, there is an attribute:
+#[repr(C)]
+type CanBeUsedFromC = | can_be_used_from_c(a: Usize, b: I16)
 
 // TODO Appendix: Built-in modules
 
-// TODO update this to functions in a ptr module?
-// Pointers can be compared via `==`, `!=`, `>`, `>=`, `<=`, `<=`. The ordering is not
-// specified, except that it is consistent with arrays:
-// If `e1 > e2`, then `@(foo[e1]) > @(foo[e2])`, and so on.
+// TODO update this to functions in a ptr module:
+// > Pointers can be compared via `==`, `!=`, `>`, `>=`, `<=`, `<=`. The ordering is not
+// > specified, except that it is consistent with arrays:
+// > If `e1 > e2`, then `@(foo[e1]) > @(foo[e2])`, and so on.
