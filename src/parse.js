@@ -36,7 +36,7 @@ module.exports = P.createLanguage({
     .skip(r.skip),
 
   attr_repr: r => P.string("repr(C)")
-    .node("AttrCc")
+    .node("AttrRepr")
     .skip(r.skip),
 
   pub: r => P.string("pub").result(true).mark().fallback(null)
@@ -105,17 +105,20 @@ module.exports = P.createLanguage({
     )
     .node("ItemType"),
 
-  type_def: r => P.alt(r.type_anon, r.type_adt, r.type_generic),
+  type_def: r => P.alt(r.type_def_anon, r.type_def_adt, r.type_def_generic),
 
-  type_generic: r => P.seqMap(
+  type_def_anon: r => r.type_anon.node("TypeDefAnon"),
+
+  type_def_generic: r => P.seqMap(
       r.sid.sepBy1(P.string(",").skip(r.skip))
         .wrap(P.string("<").skip(r.skip), P.string(">").skip(r.skip))
         .skip(P.string("=>")).skip(r.skip),
-      P.alt(r.type_anon, r.type_adt),
+      P.alt(r.type_def_anon, r.type_def_adt),
       (params, def) => ({params, def})
-    ),
+    )
+    .node("TypeDefGeneric"),
 
-  type_adt: r => P.seqMap(
+  type_def_adt: r => P.seqMap(
       P.string("|").skip(r.skip)
         .then(r.sid),
       P.alt(
@@ -154,8 +157,7 @@ module.exports = P.createLanguage({
       r.type_many,
       r.type_many_mut,
       r.type_repeated, // TODO other anonymous types: generic applications, ...
-    )
-    .node("TypeDefAnon"),
+    ),
 
   type_primitive: r => P.alt(
       P.string("U8"),
@@ -245,10 +247,10 @@ module.exports = P.createLanguage({
       P.string("mut").skip(r.skip).result(true).fallback(false),
       r.sid
         .skip(P.string(":")).skip(r.skip),
-      r.type_def,
+      r.type_anon,
       (pub, ffi_kw, val_kw, mutable, sid, type) => ({pub, ffi_kw, val_kw, mutable, sid, type})
     )
-    .node("ItemVal"),
+    .node("ItemFfiVal"),
 
   item_val: r => P.seqMap(
       r.pub,
@@ -257,11 +259,13 @@ module.exports = P.createLanguage({
         .skip(P.string("=")).skip(r.skip),
       P.alt(
           r.generic_fun_def,
-          r.exp
+          r.exp_def,
         ),
       (pub, val_kw, pattern, def) => ({pub, val_kw, pattern, def})
     )
     .node("ItemVal"),
+
+  exp_def: r => r.exp.node("ExpDefAnon"),
 
   generic_fun_def: r => P.seqMap(
       r.sid.sepBy1(P.string(",").skip(r.skip))
@@ -269,7 +273,8 @@ module.exports = P.createLanguage({
         .skip(P.string("=>")).skip(r.skip),
       r.l_exp_fun,
       (params, fun) => ({params, fun})
-    ),
+    )
+    .node("ExpDefGenericFun"),
 
   pattern: r => P.alt(
     r.literal_bool,
@@ -359,7 +364,7 @@ module.exports = P.createLanguage({
     r.pattern_binding,
     r.pattern_tuple_irref,
     r.pattern_ptr_irref,
-  ), // TODO other irref patterns
+  ),
 
   pattern_tuple_irref: r => P.alt(
       r.pattern_skip,
@@ -405,12 +410,12 @@ module.exports = P.createLanguage({
     r.l_exp_fun,
     r.l_exp_repeated,
     r.l_exp_tuple,
-    r.block,
+    r.block.node("ExpBlock"),
     r.l_exp_ptr,
     r.l_exp_ptr_mut,
     r.l_exp_many,
     r.l_exp_many_mut,
-  ), // TODO all the expressions
+  ),
 
   literal_bool: r => P.alt(
       P.string("true").result(true),
@@ -466,7 +471,7 @@ module.exports = P.createLanguage({
 
   l_exp_sizeof: r => P.seqMap(
       P.string("sizeof").mark().skip(r.skip),
-      r.exp
+      r.type_anon
         .wrap(P.string("(").skip(r.skip), P.string(")").skip(r.skip)),
       (sizeof_kw, inner) => ({sizeof_kw, inner})
     )
@@ -480,7 +485,10 @@ module.exports = P.createLanguage({
           P.string("else").mark().skip(r.skip),
           P.alt(
             r.block,
-            r.l_exp_if.map(elseif => [elseif])
+            r.l_exp_if.node("StmtExp").map(elseif => {
+              elseif.value.attrs = [];
+              return [elseif];
+            })
           ),
           (kw, block) => ({kw, block})
         )
@@ -599,7 +607,7 @@ module.exports = P.createLanguage({
   r_exp_fun_app: r => P.seqMap(
       r.type_anon.sepBy1(P.string(",").skip(r.skip))
         .wrap(P.string("<").skip(r.skip), P.string(">").skip(r.skip))
-        .fallback(null),
+        .fallback([]),
       r.exp.sepBy(P.string(",").skip(r.skip))
         .wrap(P.string("(").skip(r.skip), P.string(")").skip(r.skip)),
       (type_args, args) => ({type_args, args})
@@ -611,18 +619,23 @@ module.exports = P.createLanguage({
     }),
 
   r_exp_fun_app_named: r => P.seqMap(
-      r.sid.skip(r.skip),
-      P.string("=").skip(r.skip)
-        .then(r.exp),
-      (sid, exp) => ({sid, exp})
-    ).sepBy(P.string(",").skip(r.skip))
-      .wrap(P.string("(").skip(r.skip), P.string(")").skip(r.skip))
-      .map(args => ({args}))
-      .node("ExpFunAppNamed")
-      .map(node => left => {
-        node.value.callee = left;
-        return node;
-      }),
+      r.type_anon.sepBy1(P.string(",").skip(r.skip))
+        .wrap(P.string("<").skip(r.skip), P.string(">").skip(r.skip))
+        .fallback([]),
+      P.seqMap(
+         r.sid.skip(r.skip),
+         P.string("=").skip(r.skip)
+           .then(r.exp),
+         (sid, exp) => ({sid, exp})
+       ).sepBy(P.string(",").skip(r.skip))
+         .wrap(P.string("(").skip(r.skip), P.string(")").skip(r.skip)),
+      (type_args, args) => ({type_args, args})
+    )
+    .node("ExpFunAppNamed")
+    .map(node => left => {
+      node.value.callee = left;
+      return node;
+    }),
 
   r_exp_land: r => P.string("&&").skip(r.skip)
     .then(r.exp)
@@ -690,7 +703,7 @@ module.exports = P.createLanguage({
          r.stmt_return,
          r.stmt_label,
          r.stmt_goto,
-         r.exp
+         r.exp.node("StmtExp"),
        ),
        (attrs, stmt) => {
          stmt.value.attrs = attrs;
@@ -700,10 +713,12 @@ module.exports = P.createLanguage({
 
   stmt_halt: r => P.string("halt")
     .skip(r.skip)
+    .result({})
     .node("StmtHalt"),
 
   stmt_unreachable: r => P.string("unreachable")
     .skip(r.skip)
+    .result({})
     .node("StmtUnreachable"),
 
   stmt_val: r => P.seqMap(
