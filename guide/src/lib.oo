@@ -2,10 +2,9 @@
 //
 // Look is a simple, imperative, statically typed, high-level programming language with pointers,
 // manual memory management, algebraic data types and parametric polymorphism and ad-hoc polymorphism.
-// You can think of it as a slightly cleaner user interface to the C abstract machine.
+// You can think of it as a slightly cleaner user interface to a subset of the C abstract machine.
 //
-// You might disagree with some design choices, and that is fine.
-// You might disagree with the need for this language, and that is fine too.
+// You might disagree with the need for this language, and that is fine.
 //
 // ## Basic Types and Expressions
 //
@@ -329,6 +328,11 @@ use ListOfU8::nil
 use ListOfU8::cons
 use ListOfU8::cons as append
 val another_list_of_u8: ListOfU8 = cons(1, @append(2, @nil))
+
+// By default, constructors are not visible outside the current file. To make
+// them visible, use the `pub` keyword. An ADT with non-public constructors is
+// completely opaque, there's no way to directly access fields outside the file.
+type NonOpaque = pub | foo | bar(I32)
 
 // The arguments to a constructor can be named.
 type Color = | color(r: U8, g: U8, b: U8)

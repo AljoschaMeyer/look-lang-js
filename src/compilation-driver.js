@@ -39,9 +39,9 @@ function get_or_load_ast(driver, data) {
     return driver.ast_cache[data.module];
   } else {
     let ast = {
-      driver,
-      root: do_parse(driver, data.path)
+      driver
     };
+    do_parse(ast, data.path);
     return ast;
   }
 }
@@ -56,19 +56,22 @@ function get_ast(driver, module) {
 }
 
 // Read a fiele from the fs and parse it into an AST.
-function do_parse(driver, path) {
+function do_parse(ast, path) {
   const src = fs.readFileSync(path, "utf8");
-  let ast = parsers.file.tryParse(src);
-  ast.driver = driver;
-  return ast;
+  ast.root = parsers(ast).file.tryParse(src);
 }
 
 // Add binding sites for items, and resolve bindings in `use`s.
 // Also creates bindings for the tags of ADTs.
 // This is indirectly responsible for all `do_parse` calls (except the very first one).
 function resolve_item_bindings(driver, base_ast) {
-  run_visitor({}, base_ast);
-  // TODO
+  run_visitor({
+    pre_item: item => {
+      // TODO
+      return false;
+    }
+  }, base_ast);
+  // TODO ?
 }
 
 // Generate C code.
