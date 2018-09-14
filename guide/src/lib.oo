@@ -482,6 +482,18 @@ val test_associativity = (x: U32, y: U32, z: U32) -> () {
 // tuples `(@[T], Usize)` or `(~[T], Usize)` as arguments to a test function.
 // The second part of the tuple then holds the number of elements in the array.
 
+// Since opaque data types may use opacity to ensure that only a subset of possible
+// values is allowed, it would not make sense to generate those purely randomly.
+// To make an opaque data type `T` usable for property tests, there must be exactly one
+// function in the defining file which:
+// - returns a `T`
+// - takes only arguments that can be randomly generated
+// - is annotated with the `#[test_gen]` annotation
+#[test_gen]
+val test_gen_color = (r: U8, b: U8, g: U8) -> Color {
+  return Color::color(r = r, b = b, g = g)
+}
+
 // The initial implementation of look uses [afl](http://lcamtuf.coredump.cx/afl/) to
 // generate the arguments.
 // Currently, arguments of a function type become either a constant function, or an
