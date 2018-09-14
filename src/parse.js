@@ -242,7 +242,7 @@ module.exports = ast => {
          r.type_ptr_mut,
          r.type_many,
          r.type_many_mut,
-         r.type_repeated, // TODO other anonymous types: generic applications, ...
+         r.type_repeated,
        ),
 
      type_primitive: r => P.alt(
@@ -385,7 +385,7 @@ module.exports = ast => {
      item_val: r => P.seqMap(
          r.pub,
          P.string("val").mark().skip(r.skip),
-         r.pattern_irref
+         r.pattern_binding
            .skip(P.string("=")).skip(r.skip),
          P.alt(
              r.generic_fun_def,
@@ -397,13 +397,10 @@ module.exports = ast => {
        .map(node => {
          node.ast = ast;
 
-         console.log(node);
-         /* TODO XXX recursively walk all patterns */
-         // TODO nah, rather disallow top-level, non-binding patterns
          if (node.value.pub) {
-             // TODO
+             ast.items_public[node.value.sid] = node;
          } else {
-            // TODO
+             ast.items_private[node.value.sid] = node;
          }
 
          return node;

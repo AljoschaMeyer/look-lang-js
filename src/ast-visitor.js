@@ -8,7 +8,7 @@
 
 // The exported function takes an object of visitor functions and an ast to
 // visit, and invokes the given functions.
-module.exports = (funs, ast) => {
+module.exports.run_visitor = (funs, ast) => {
   // Look at the attrs on a node and check conditional compilation flags.
   const should_compile = node => {
     for (let i = 0; i < node.value.attrs.length; i++) {

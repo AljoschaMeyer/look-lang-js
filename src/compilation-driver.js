@@ -3,7 +3,7 @@
 const fs = require("fs");
 
 const parsers = require("./parse");
-const run_visitor = require("./ast-visitor");
+const { run_visitor } = require("./ast-visitor");
 
 // Creates a new compilation driver with methods for analyzing, compiling etc.
 //
